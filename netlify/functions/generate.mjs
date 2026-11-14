@@ -1,4 +1,4 @@
-const MODEL = 'gpt-image-2'
+const MODEL = 'gpt-image-1.5'
 
 // These rules are intentionally server-side. They are never included in the
 // browser bundle or returned to participants.
