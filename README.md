@@ -7,7 +7,7 @@ Experimental graphic-design platform for comparing **Human Design** and **AI Des
 ## Study conditions
 
 - **Human Design:** participants arrange the controlled shape library and colour palette themselves.
-- **AI Design:** participants enter a design brief and receive a generated image. A Netlify Function appends the study constraints on the server before calling `gpt-image-2` through Netlify AI Gateway.
+- **AI Design:** participants enter a design brief and receive a generated image. A Netlify Function appends the study constraints on the server before calling `gemini-2.5-flash-image` through Netlify AI Gateway.
 
 The hidden AI instructions are stored only in `netlify/functions/generate.mjs`. They are not included in the browser bundle or returned to participants. Keep this repository private if participants must not inspect those rules.
 
