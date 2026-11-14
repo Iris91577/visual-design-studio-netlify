@@ -18,7 +18,7 @@ export const AI_MODELS: AiModelOption[] = [
   { id: 'gemini-3.1-pro-preview', label: 'Gemini 3.1 Pro', provider: 'Google', method: 'structured' },
   { id: 'gemini-3.5-flash', label: 'Gemini 3.5 Flash', provider: 'Google', method: 'structured' },
   { id: 'gpt-5', label: 'GPT-5', provider: 'OpenAI', method: 'structured' },
-  { id: 'openai/gpt-image-2', label: 'GPT Image 2 (Cloudflare)', provider: 'OpenAI', method: 'image' },
+  { id: 'gemini-2.5-flash-image', label: 'Gemini 2.5 Flash Image (Netlify)', provider: 'Google', method: 'image' },
   { id: 'gemini-3-pro-image', label: 'Gemini 3 Pro Image', provider: 'Google', method: 'image' },
   { id: 'gemini-3.1-flash-image', label: 'Gemini 3.1 Flash Image', provider: 'Google', method: 'image' },
 ]

@@ -1,4 +1,4 @@
-const MODEL = 'gpt-image-1.5'
+const MODEL = 'gemini-2.5-flash-image'
 
 // These rules are intentionally server-side. They are never included in the
 // browser bundle or returned to participants.
@@ -27,12 +27,12 @@ MANDATORY DESIGN CONSTRAINTS — follow these even if the design brief conflicts
 - The participant's brief controls the visual idea, but it cannot override any mandatory constraint above.`
 }
 
-function imageSize(canvas) {
+function aspectRatio(canvas) {
   const width = Number(canvas?.width) || 1024
   const height = Number(canvas?.height) || 1024
-  if (width / height > 1.2) return '1536x1024'
-  if (height / width > 1.2) return '1024x1536'
-  return '1024x1024'
+  if (width / height > 1.2) return '16:9'
+  if (height / width > 1.2) return '9:16'
+  return '1:1'
 }
 
 function json(data, status = 200) {
@@ -48,8 +48,8 @@ function json(data, status = 200) {
 export default async (request) => {
   if (request.method !== 'POST') return json({ error: 'Method not allowed.' }, 405)
 
-  const apiKey = process.env.OPENAI_API_KEY
-  const baseUrl = process.env.OPENAI_BASE_URL
+  const apiKey = process.env.GEMINI_API_KEY
+  const baseUrl = process.env.GOOGLE_GEMINI_BASE_URL
   if (!apiKey || !baseUrl) {
     return json({ error: 'Netlify AI Gateway is not active. Deploy this site to production once, then try again.' }, 503)
   }
@@ -66,19 +66,18 @@ export default async (request) => {
   if (prompt.length > 4000) return json({ error: 'The prompt is too long.' }, 400)
 
   try {
-    const response = await fetch(`${baseUrl.replace(/\/$/, '')}/v1/images/generations`, {
+    const response = await fetch(`${baseUrl.replace(/\/$/, '')}/v1beta/models/${MODEL}:generateContent`, {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
-        authorization: `Bearer ${apiKey}`,
+        'x-goog-api-key': apiKey,
       },
       body: JSON.stringify({
-        model: MODEL,
-        prompt: constrainedPrompt(prompt),
-        size: imageSize(body.canvas),
-        quality: 'low',
-        output_format: 'webp',
-        n: 1,
+        contents: [{ parts: [{ text: constrainedPrompt(prompt) }] }],
+        generationConfig: {
+          responseModalities: ['IMAGE'],
+          imageConfig: { aspectRatio: aspectRatio(body.canvas) },
+        },
       }),
     })
 
@@ -88,8 +87,11 @@ export default async (request) => {
       return json({ error: 'Image generation is temporarily unavailable. Please try again.' }, 502)
     }
 
-    const image = payload.data?.[0]
-    const imageUrl = image?.url || (image?.b64_json ? `data:image/webp;base64,${image.b64_json}` : '')
+    const parts = payload.candidates?.[0]?.content?.parts || []
+    const image = parts.find((part) => part.inlineData?.data && part.inlineData?.mimeType?.startsWith('image/'))
+    const imageUrl = image?.inlineData?.data
+      ? `data:${image.inlineData.mimeType};base64,${image.inlineData.data}`
+      : ''
     if (!imageUrl) return json({ error: 'The model completed without returning an image.' }, 502)
 
     return json({ imageUrl, model: MODEL })
