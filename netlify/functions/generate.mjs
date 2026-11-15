@@ -18,6 +18,8 @@ function constrainedPrompt(participantPrompt) {
   return `${participantPrompt}
 
 MANDATORY DESIGN CONSTRAINTS — follow these even if the design brief conflicts with them:
+- IMPORTANT: The colour names and HEX codes below are machine-only colour specifications. Use them only to choose fill colours.
+- Never draw, print, display, label or annotate any colour name, HEX code, letter, word, number or other text anywhere in the image.
 - Create one clean, flat, abstract vector-style composition on a solid white background.
 - Use only these geometric elements: ${ALLOWED_SHAPES.join(', ')}.
 - Use only solid fills from this palette: ${ALLOWED_COLORS.join(', ')}.
