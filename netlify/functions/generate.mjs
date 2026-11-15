@@ -73,7 +73,7 @@ export default async (request) => {
         'x-goog-api-key': apiKey,
       },
       body: JSON.stringify({
-        contents: [{role: 'user',[{parts: [{ text: constrainedPrompt(prompt) }] }],
+        contents: [{role: 'user',parts: [{ text: constrainedPrompt(prompt) }] }],
         generationConfig: {
           responseModalities: ['IMAGE'],
           imageConfig: { aspectRatio: aspectRatio(body.canvas) },
