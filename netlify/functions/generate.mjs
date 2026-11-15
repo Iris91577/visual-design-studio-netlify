@@ -5,7 +5,7 @@ const MODEL = 'gemini-2.5-flash-image'
 const ALLOWED_SHAPES = [
   'circle', 'ellipse', 'square', 'rectangle', 'triangle', 'diamond',
   'pentagon', 'hexagon', 'octagon', 'star', 'heart', 'semicircle',
-  'cross', 'straight line', 'curved line', 'arrow',
+  'cross', 'straight line', 'arrow',
 ]
 
 const ALLOWED_COLORS = [
@@ -20,6 +20,8 @@ function constrainedPrompt(participantPrompt) {
 MANDATORY DESIGN CONSTRAINTS — follow these even if the design brief conflicts with them:
 - IMPORTANT: The colour names and HEX codes below are machine-only colour specifications. Use them only to choose fill colours.
 - Never draw, print, display, label or annotate any colour name, HEX code, letter, word, number or other text anywhere in the image.
+- Curved strokes are forbidden. Do not draw arcs, spirals, rings, loops, circular outlines or decorative curved lines.
+- Curved geometry may appear only as the solid filled circle, ellipse, semicircle or heart elements listed above.
 - Create one clean, flat, abstract vector-style composition on a solid white background.
 - Use only these geometric elements: ${ALLOWED_SHAPES.join(', ')}.
 - Use only solid fills from this palette: ${ALLOWED_COLORS.join(', ')}.
