@@ -1,13 +1,13 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Download, FileDown, Hand, Sparkles } from 'lucide-react'
 import { Badge, Button, Card } from '../../components/ui'
 import { DesignPreview } from '../../editor/ShapeSvg'
-import { experiments, getSessions } from '../../fixtures'
 import { presetLabel } from '../../lib/canvasPresets'
 import { durationSec, sessionsToCsv } from '../../lib/exportCsv'
 import { downloadBlob } from '../../lib/render'
 import type { ParticipantSession } from '../../lib/types'
+import { loadSessions } from '../../services/sessions'
 import { PageHeader } from './AdminLayout'
 
 export const sessionTone = { submitted: 'green', in_progress: 'blue', abandoned: 'slate' } as const
@@ -17,12 +17,27 @@ export const fmtDur = (s: number | null) => (s === null ? '—' : `${Math.floor(
 export function SessionsPage() {
   const [exp, setExp] = useState('all')
   const [cond, setCond] = useState<'all' | 'human' | 'ai'>('all')
+  const [sessions, setSessions] = useState<ParticipantSession[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  useEffect(() => {
+    let active = true
+    loadSessions()
+      .then(({ sessions: remote }) => { if (active) setSessions(remote) })
+      .catch((err) => { if (active) setError(err instanceof Error ? err.message : 'Could not load participants.') })
+      .finally(() => { if (active) setLoading(false) })
+    return () => { active = false }
+  }, [])
+  const experimentOptions = useMemo(() => {
+    const map = new Map(sessions.flatMap((s) => s.experiment ? [[s.experiment.id, s.experiment.name] as const] : []))
+    return [...map.entries()]
+  }, [sessions])
   const rows = useMemo(
-    () => getSessions(exp === 'all' ? undefined : exp).filter((s) => cond === 'all' || s.condition === cond),
-    [exp, cond],
+    () => sessions.filter((s) => (exp === 'all' || s.experimentId === exp) && (cond === 'all' || s.condition === cond)),
+    [sessions, exp, cond],
   )
   const exportCsv = () =>
-    downloadBlob(new Blob([sessionsToCsv(rows, experiments)], { type: 'text/csv;charset=utf-8' }), `vds-sessions-${new Date().toISOString().slice(0, 10)}.csv`)
+    downloadBlob(new Blob([sessionsToCsv(rows, rows.flatMap((s) => s.experiment ? [s.experiment] : []))], { type: 'text/csv;charset=utf-8' }), `vds-sessions-${new Date().toISOString().slice(0, 10)}.csv`)
 
   return (
     <>
@@ -40,7 +55,7 @@ export function SessionsPage() {
         <div className="mb-4 flex flex-wrap items-center gap-3">
           <select value={exp} onChange={(e) => setExp(e.target.value)} className="h-9 rounded-lg bg-white px-3 text-[13px] font-semibold ring-1 ring-slate-200">
             <option value="all">All experiments</option>
-            {experiments.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
+            {experimentOptions.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
           </select>
           <div className="flex rounded-lg bg-white p-0.5 ring-1 ring-slate-200">
             {(['all', 'human', 'ai'] as const).map((c) => (
@@ -49,8 +64,9 @@ export function SessionsPage() {
               </button>
             ))}
           </div>
-          <span className="ml-auto text-[12.5px] text-slate-400">{rows.length} sessions · sample data</span>
+          <span className="ml-auto text-[12.5px] text-slate-400">{loading ? 'Loading submissions…' : `${rows.length} real submission${rows.length === 1 ? '' : 's'}`}</span>
         </div>
+        {error && <div className="mb-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700 ring-1 ring-red-100">{error}</div>}
         <Card className="overflow-x-auto">
           <table className="w-full min-w-[960px] text-left text-[13px]">
             <thead className="border-b border-slate-200 bg-slate-50/80 text-[11.5px] font-bold uppercase tracking-[0.06em] text-slate-400">
@@ -62,6 +78,7 @@ export function SessionsPage() {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {rows.map((s) => <Row key={s.id} s={s} />)}
+              {!loading && rows.length === 0 && <tr><td colSpan={8} className="px-4 py-16 text-center text-sm text-slate-400">No participant submissions yet.</td></tr>}
             </tbody>
           </table>
         </Card>
@@ -71,12 +88,12 @@ export function SessionsPage() {
 }
 
 function Row({ s }: { s: ParticipantSession }) {
-  const exp = experiments.find((e) => e.id === s.experimentId)!
+  const exp = s.experiment
   return (
     <tr className="group hover:bg-slate-50/70">
       <td className="px-4 py-2.5">
         <Link to={`/admin/sessions/${s.id}`} className="flex h-14 w-14 items-center justify-center rounded-md bg-workspace ring-1 ring-slate-200">
-          {s.elements.length ? (
+          {s.imageUrl ? <img src={s.imageUrl} alt="Submitted design" className="h-full max-w-full object-contain" /> : exp && s.elements.length ? (
             <DesignPreview width={exp.canvas.width} height={exp.canvas.height} background={s.background} elements={s.elements} className="h-full max-w-full" />
           ) : <span className="text-[10px] text-slate-400">empty</span>}
         </Link>
@@ -86,8 +103,8 @@ function Row({ s }: { s: ParticipantSession }) {
         {s.condition === 'human' ? <Badge tone="blue"><Hand className="size-3" /> Human</Badge> : <Badge tone="violet"><Sparkles className="size-3" /> AI</Badge>}
       </td>
       <td className="px-4 py-2.5 text-slate-600">
-        <div>{exp.name.split('·')[0].trim()} <span className="font-mono text-[11px] text-slate-400">v{s.experimentVersion}</span></div>
-        <div className="text-[11.5px] text-slate-400">{presetLabel(exp.canvas.presetId, exp.canvas.width, exp.canvas.height)}</div>
+        <div>{exp?.name.split('·')[0].trim() ?? s.experimentId} <span className="font-mono text-[11px] text-slate-400">v{s.experimentVersion}</span></div>
+        <div className="text-[11.5px] text-slate-400">{exp ? presetLabel(exp.canvas.presetId, exp.canvas.width, exp.canvas.height) : '—'}</div>
       </td>
       <td className="px-4 py-2.5 text-slate-600">{fmtTime(s.startedAt)}</td>
       <td className="px-4 py-2.5 text-slate-600">{fmtTime(s.submittedAt)}</td>

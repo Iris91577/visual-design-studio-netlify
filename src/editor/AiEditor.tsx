@@ -94,7 +94,9 @@ export function AiEditor({
             return response.blob()
           })
         : await designToPng(config.canvas.width, config.canvas.height, background, elements)
-      onSubmitted(await submitDesign(linkCode, participantId, output))
+      onSubmitted(await submitDesign(linkCode, participantId, output, {
+        config, startedAt, elements, background, actionLog: [], prompt, generationsUsed: used,
+      }))
     } catch (err) {
       toast(err instanceof Error ? `Could not submit: ${err.message}. Please try again.` : 'Could not submit. Please try again.', 'error')
       setBusy(false)

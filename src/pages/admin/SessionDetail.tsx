@@ -1,28 +1,43 @@
 import type React from 'react'
-import { Fragment, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { ArrowLeft, CircleAlert, CircleCheck, Download, FileDown } from 'lucide-react'
 import { Badge, Button, Card } from '../../components/ui'
 import { DesignPreview } from '../../editor/ShapeSvg'
-import { getExperiment, getSession } from '../../fixtures'
 import { METHOD_LABELS } from '../../lib/aiModels'
 import { presetLabel } from '../../lib/canvasPresets'
 import { durationSec } from '../../lib/exportCsv'
-import { designToPng, downloadBlob } from '../../lib/render'
+import { downloadBlob } from '../../lib/render'
 import { SHAPE_MAP } from '../../lib/shapes'
-import type { ActionLogEntry } from '../../lib/types'
+import type { ActionLogEntry, ParticipantSession } from '../../lib/types'
+import { loadSession } from '../../services/sessions'
 import { PageHeader } from './AdminLayout'
 import { fmtDur, fmtTime, sessionTone } from './Sessions'
 
 export function SessionDetail() {
   const { id = '' } = useParams()
-  const s = getSession(id)
-  const exp = s ? getExperiment(s.experimentId) : null
-  const [tab, setTab] = useState<'log' | 'ai' | 'json'>(s?.condition === 'ai' ? 'ai' : 'log')
+  const [s, setSession] = useState<ParticipantSession | null | undefined>(undefined)
+  const [tab, setTab] = useState<'log' | 'ai' | 'json'>('log')
+  useEffect(() => {
+    let active = true
+    loadSession(id).then((result) => {
+      if (!active) return
+      setSession(result?.session ?? null)
+      if (result?.session.condition === 'ai') setTab('ai')
+    }).catch(() => { if (active) setSession(null) })
+    return () => { active = false }
+  }, [id])
+  if (s === undefined) return <div className="p-8 text-sm text-slate-500">Loading participant submission…</div>
+  const exp = s?.experiment
   if (!s || !exp) return <div className="p-8">Session not found. <Link className="text-brand-600" to="/admin/sessions">Back</Link></div>
 
   const { width: W, height: H } = exp.canvas
-  const downloadPng = async () => downloadBlob(await designToPng(W, H, s.background, s.elements), `${s.participantId}_${s.condition}.png`)
+  const downloadPng = async () => {
+    if (!s.imageUrl) return
+    const response = await fetch(s.imageUrl, { credentials: 'same-origin' })
+    if (!response.ok) throw new Error('Could not download the submitted design.')
+    downloadBlob(await response.blob(), `${s.participantId}_${s.condition}.png`)
+  }
   const downloadJson = () =>
     downloadBlob(new Blob([JSON.stringify({ canvas: { width: W, height: H, background: s.background }, elements: s.elements }, null, 2)], { type: 'application/json' }), `${s.participantId}_${s.condition}.json`)
 
@@ -43,7 +58,7 @@ export function SessionDetail() {
       <PageHeader
         title={<span className="flex items-center gap-3"><Link to="/admin/sessions" className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"><ArrowLeft className="size-5" /></Link><span className="font-mono text-xl">{s.participantId}</span></span>}
         subtitle={<Badge tone={sessionTone[s.status]}>{s.status.replace('_', ' ')}</Badge>}
-        actions={s.elements.length > 0 && (
+        actions={s.imageUrl && (
           <>
             <Button onClick={downloadJson}><FileDown className="size-4" /> Design JSON</Button>
             <Button variant="primary" onClick={downloadPng}><Download className="size-4" /> PNG {W}×{H}</Button>
@@ -54,7 +69,7 @@ export function SessionDetail() {
         <div className="flex flex-col gap-6">
           <Card className="p-4">
             <div className="flex h-[400px] items-center justify-center rounded-lg bg-workspace p-4">
-              {s.elements.length ? <DesignPreview width={W} height={H} background={s.background} elements={s.elements} className="h-full max-w-full shadow-md" />
+              {s.imageUrl ? <img src={s.imageUrl} alt="Submitted design" className="h-full max-w-full object-contain shadow-md" /> : s.elements.length ? <DesignPreview width={W} height={H} background={s.background} elements={s.elements} className="h-full max-w-full shadow-md" />
                 : <span className="text-sm text-slate-400">No final design</span>}
             </div>
           </Card>

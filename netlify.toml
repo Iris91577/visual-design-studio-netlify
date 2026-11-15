@@ -22,6 +22,11 @@
   to = "/.netlify/functions/experiments"
   status = 200
 
+[[redirects]]
+  from = "/api/sessions"
+  to = "/.netlify/functions/sessions"
+  status = 200
+
 # Single-page app routes. These are listed explicitly (instead of a catch-all)
 # so that a Netlify Server added later can own /api/* without being shadowed.
 [[redirects]]

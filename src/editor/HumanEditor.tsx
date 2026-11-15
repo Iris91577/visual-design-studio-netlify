@@ -89,7 +89,12 @@ export function HumanEditor({
     try {
       ed.logSubmit()
       const png = await designToPng(config.canvas.width, config.canvas.height, ed.background, ed.elements)
-      const sub = await submitDesign(linkCode, participantId, png)
+      const submitEntry: ActionLogEntry = {
+        action: 'submit', at: new Date().toISOString(), elapsedMs: Date.now() - new Date(startedAt).getTime(), elementCount: ed.elements.length,
+      }
+      const sub = await submitDesign(linkCode, participantId, png, {
+        config, startedAt, elements: ed.elements, background: ed.background, actionLog: [...(draft?.log ?? []), ...ed.log, submitEntry],
+      })
       onSubmitted(sub)
     } catch (err) {
       toast(err instanceof Error ? `Could not submit: ${err.message}. Please try again.` : 'Could not submit. Please try again.', 'error')

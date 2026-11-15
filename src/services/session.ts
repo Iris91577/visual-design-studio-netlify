@@ -1,5 +1,5 @@
 import { completionCode, uid } from '../lib/ids'
-import type { ActionLogEntry, DesignElement } from '../lib/types'
+import type { ActionLogEntry, DesignElement, ExperimentConfig } from '../lib/types'
 
 /**
  * Participant session persistence — PREVIEW IMPLEMENTATION.
@@ -51,6 +51,16 @@ export function saveDraft(code: string, pid: string, draft: Draft) {
 
 export interface Submission { code: string; submittedAt: string; pngDataUrl: string }
 
+export interface SubmissionMetadata {
+  config: ExperimentConfig
+  startedAt: string
+  elements: DesignElement[]
+  background: string
+  actionLog: ActionLogEntry[]
+  prompt?: string
+  generationsUsed?: number
+}
+
 export function getSubmission(code: string, pid: string): Submission | null {
   try {
     const raw = localStorage.getItem(key(code, pid, 'done'))
@@ -60,7 +70,7 @@ export function getSubmission(code: string, pid: string): Submission | null {
   }
 }
 
-export async function submitDesign(code: string, pid: string, png: Blob): Promise<Submission> {
+export async function submitDesign(code: string, pid: string, png: Blob, metadata: SubmissionMetadata): Promise<Submission> {
   const existing = getSubmission(code, pid)
   if (existing) return existing // idempotent: never create a second record
   const pngDataUrl = await new Promise<string>((resolve) => {
@@ -68,7 +78,20 @@ export async function submitDesign(code: string, pid: string, png: Blob): Promis
     r.onload = () => resolve(r.result as string)
     r.readAsDataURL(png)
   })
-  const sub: Submission = { code: completionCode(), submittedAt: new Date().toISOString(), pngDataUrl }
+  let sub: Submission
+  if (code.startsWith('preview-')) {
+    sub = { code: completionCode(), submittedAt: new Date().toISOString(), pngDataUrl }
+  } else {
+    const form = new FormData()
+    form.set('code', code)
+    form.set('pid', pid)
+    form.set('metadata', JSON.stringify(metadata))
+    form.set('design', png, 'design.png')
+    const response = await fetch('/api/sessions', { method: 'POST', body: form, credentials: 'same-origin' })
+    const payload = await response.json().catch(() => ({}))
+    if (!response.ok) throw new Error(payload.error || 'The submission server could not be reached')
+    sub = { code: payload.code, submittedAt: payload.submittedAt, pngDataUrl }
+  }
   try {
     localStorage.setItem(key(code, pid, 'done'), JSON.stringify(sub))
   } catch {

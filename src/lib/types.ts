@@ -107,4 +107,8 @@ export interface ParticipantSession {
   background: string
   actionLog: ActionLogEntry[]
   aiGenerations: AiGenerationRecord[]
+  /** Immutable experiment snapshot captured when the participant submitted. */
+  experiment?: ExperimentConfig
+  /** Authenticated researcher-only URL for the submitted bitmap. */
+  imageUrl?: string
 }
