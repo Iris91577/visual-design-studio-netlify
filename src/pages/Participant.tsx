@@ -45,12 +45,16 @@ export function ResearcherPreview() {
   const { condition = 'human' } = useParams()
   const [params] = useSearchParams()
   const experimentId = params.get('exp') ?? 'exp-01'
-  const [config, setConfig] = useState<ExperimentConfig | null>(() => getExperiment(experimentId) ?? getExperiment('exp-01'))
+  const [config, setConfig] = useState<ExperimentConfig | null>(null)
   useEffect(() => {
     let active = true
+    const fallback = getExperiment(experimentId) ?? getExperiment('exp-01')
+    // Do not render the bundled fallback while the saved draft is loading.
+    // Showing it first causes the old experiment settings to flash on screen.
+    setConfig(null)
     loadExperiment(experimentId, 'editor')
-      .then((remote) => { if (active && remote) setConfig(remote.experiment) })
-      .catch(() => undefined)
+      .then((remote) => { if (active) setConfig(remote?.experiment ?? fallback) })
+      .catch(() => { if (active) setConfig(fallback) })
     return () => { active = false }
   }, [experimentId])
   if (!config) return <Loading />
