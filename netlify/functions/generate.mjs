@@ -9,9 +9,9 @@ const ALLOWED_SHAPES = [
 ]
 
 const ALLOWED_COLORS = [
-  'red #E74C3C', 'orange #F39C12', 'yellow #F4D03F', 'green #27AE60',
-  'teal #16A085', 'blue #3498DB', 'navy #2C3E50', 'purple #8E44AD',
-  'pink #E91E63', 'black #222222', 'gray #95A5A6', 'white #FFFFFF',
+  'red', 'orange', 'yellow', 'green',
+  'teal', 'blue', 'navy', 'purple',
+  'pink', 'black', 'gray', 'white',
 ]
 
 function constrainedPrompt(participantPrompt) {
