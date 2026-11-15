@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Check, Copy, Eye, Hand, Lock, Plus, Sparkles, Trash2 } from 'lucide-react'
 import { Badge, Button, Card, useToast } from '../../components/ui'
@@ -10,6 +10,7 @@ import { uid } from '../../lib/ids'
 import { DEFAULT_PALETTE, isLight } from '../../lib/palette'
 import { ALL_SHAPE_TYPES, CATEGORY_LABELS, SHAPES } from '../../lib/shapes'
 import type { Condition, ExperimentConfig, GenerationMethod, ShapeCategory } from '../../lib/types'
+import { loadExperiment, saveExperiment } from '../../services/experiments'
 import { PageHeader } from './AdminLayout'
 import { statusTone } from './Experiments'
 
@@ -31,8 +32,22 @@ export function ExperimentEditor() {
   const { id = 'new' } = useParams()
   const toast = useToast()
   const nav = useNavigate()
-  const original = useMemo(() => (id === 'new' ? blankExperiment() : getExperiment(id)), [id])
-  const [cfg, setCfg] = useState<ExperimentConfig | null>(original ? structuredClone(original) : null)
+  const fixture = useMemo(() => (id === 'new' ? blankExperiment() : getExperiment(id)), [id])
+  const [original, setOriginal] = useState<ExperimentConfig | null>(fixture)
+  const [cfg, setCfg] = useState<ExperimentConfig | null>(fixture ? structuredClone(fixture) : null)
+  const [saving, setSaving] = useState(false)
+  useEffect(() => {
+    if (id === 'new') return
+    let active = true
+    loadExperiment(id, 'editor').then((remote) => {
+      if (!active || !remote) return
+      setOriginal(remote.published ?? fixture)
+      setCfg(structuredClone(remote.experiment))
+    }).catch((err) => {
+      if (active) toast(err instanceof Error ? err.message : 'Could not load the saved experiment.', 'error')
+    })
+    return () => { active = false }
+  }, [id, fixture, toast])
   if (!cfg || !original) return <div className="p-8">Experiment not found. <Link className="text-brand-600" to="/admin">Back</Link></div>
 
   const set = (patch: Partial<ExperimentConfig>) => setCfg({ ...cfg, ...patch })
@@ -49,13 +64,23 @@ export function ExperimentEditor() {
   const sizeError = cfg.canvas.width < CANVAS_MIN || cfg.canvas.width > CANVAS_MAX || cfg.canvas.height < CANVAS_MIN || cfg.canvas.height > CANVAS_MAX
   const invalid = paletteErrors || sizeError || cfg.allowedShapes.length === 0 || cfg.palette.length === 0 || cfg.maxElements < 1
 
-  const save = (publish: boolean) => {
+  const save = async (publish: boolean) => {
     if (invalid) { toast('Fix the highlighted settings before saving.', 'error'); return }
-    toast(
-      publish ? `Published ${cfg.name}${willVersion ? ` as v${original.version + 1}` : ''} (preview: not yet saved to the server)` : 'Draft saved (preview: not yet saved to the server)',
-      'success',
-    )
-    if (id === 'new') nav('/admin')
+    setSaving(true)
+    try {
+      const candidate: ExperimentConfig = publish
+        ? { ...cfg, version: willVersion ? original.version + 1 : original.version, status: 'published' }
+        : cfg
+      const result = await saveExperiment(candidate, publish ? 'publish' : 'draft')
+      setCfg(structuredClone(result.experiment))
+      if (publish) setOriginal(structuredClone(result.experiment))
+      toast(publish ? `Published ${result.experiment.name} as v${result.experiment.version}.` : 'Draft saved. Researcher previews now use this draft.', 'success')
+      if (id === 'new') nav('/admin')
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Could not save the experiment.', 'error')
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -76,8 +101,8 @@ export function ExperimentEditor() {
         }
         actions={
           <>
-            <Button onClick={() => save(false)}>Save draft</Button>
-            <Button variant="primary" onClick={() => save(true)}>{willVersion ? `Publish v${original.version + 1}` : original.status === 'published' ? 'Save' : 'Publish'}</Button>
+            <Button disabled={saving} onClick={() => save(false)}>{saving ? 'Saving…' : 'Save draft'}</Button>
+            <Button disabled={saving} variant="primary" onClick={() => save(true)}>{willVersion ? `Publish v${original.version + 1}` : original.status === 'published' ? 'Save' : 'Publish'}</Button>
           </>
         }
       />
@@ -275,11 +300,11 @@ export function ExperimentEditor() {
             </dl>
             {id !== 'new' && (
               <div className="mt-5 grid grid-cols-2 gap-2">
-                <Link to={`/demo/human?exp=${cfg.id}`} target="_blank" className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-white text-[13px] font-semibold ring-1 ring-slate-200 hover:bg-slate-50"><Eye className="size-4" /> Human</Link>
-                <Link to={`/demo/ai?exp=${cfg.id}`} target="_blank" className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-white text-[13px] font-semibold ring-1 ring-slate-200 hover:bg-slate-50"><Eye className="size-4" /> AI</Link>
+                <Link to={`/demo/human?exp=${cfg.id}&draft=1`} target="_blank" className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-white text-[13px] font-semibold ring-1 ring-slate-200 hover:bg-slate-50"><Eye className="size-4" /> Human</Link>
+                <Link to={`/demo/ai?exp=${cfg.id}&draft=1`} target="_blank" className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-white text-[13px] font-semibold ring-1 ring-slate-200 hover:bg-slate-50"><Eye className="size-4" /> AI</Link>
               </div>
             )}
-            {id !== 'new' && <p className="mt-2 text-center text-[11.5px] text-slate-400">Previews use the saved version</p>}
+            {id !== 'new' && <p className="mt-2 text-center text-[11.5px] text-slate-400">Previews use the latest saved draft</p>}
           </Card>
         </div>
       </div>

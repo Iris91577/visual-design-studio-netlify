@@ -13,6 +13,15 @@ import { SubmitDialog } from './SubmitFlow'
 
 type Status = 'idle' | 'generating' | 'done' | 'error'
 
+function preloadImage(src: string) {
+  return new Promise<void>((resolve, reject) => {
+    const image = new Image()
+    image.onload = () => resolve()
+    image.onerror = () => reject(new Error('The generated image could not be displayed.'))
+    image.src = src
+  })
+}
+
 export function AiEditor({
   config, linkCode, participantId, onSubmitted, headerBadge,
 }: {
@@ -57,12 +66,19 @@ export function AiEditor({
     setError(null)
     try {
       const res = await generateDesign(prompt, config)
+      // Decode the returned data URL before swapping it onto the canvas. This
+      // avoids a blank frame while the browser processes a large AI image.
+      if (directImage) await preloadImage(res.imageUrl)
       // Only a successful generation counts against the participant's limit.
       setElements(res.elements)
       setImageUrl(res.imageUrl)
       setUsed(used + 1)
       setStatus('done')
-      persist({ elements: res.elements, imageUrl: res.imageUrl, used: used + 1 })
+      // localStorage is synchronous. Delay the large Base64 write so React and
+      // the browser can paint the generated image first.
+      window.setTimeout(() => {
+        persist({ elements: res.elements, imageUrl: res.imageUrl, used: used + 1 })
+      }, 500)
     } catch (err) {
       setStatus('error')
       setError(err instanceof Error ? err.message : 'The design service could not be reached.')

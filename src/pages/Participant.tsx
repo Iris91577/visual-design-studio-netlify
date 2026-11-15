@@ -1,5 +1,5 @@
 import type React from 'react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { Eye, RotateCcw } from 'lucide-react'
 import { Logo } from '../components/ui'
@@ -9,6 +9,7 @@ import { CompletionScreen } from '../editor/SubmitFlow'
 import { getExperiment, resolveLink } from '../fixtures'
 import type { Condition, ExperimentConfig } from '../lib/types'
 import { getSubmission, resolveParticipantId, type Submission } from '../services/session'
+import { loadExperiment, resolvePublishedLink } from '../services/experiments'
 
 function ParticipantView({ config, condition, code, pid, badge, extra }: {
   config: ExperimentConfig; condition: Condition; code: string; pid: string; badge?: React.ReactNode; extra?: React.ReactNode
@@ -23,7 +24,15 @@ function ParticipantView({ config, condition, code, pid, badge, extra }: {
 export function ParticipantEntry() {
   const { code = '' } = useParams()
   const [params] = useSearchParams()
-  const resolved = resolveLink(code)
+  const [resolved, setResolved] = useState<ReturnType<typeof resolveLink> | undefined>(undefined)
+  useEffect(() => {
+    let active = true
+    resolvePublishedLink(code)
+      .then((remote) => { if (active) setResolved(remote ?? resolveLink(code)) })
+      .catch(() => { if (active) setResolved(resolveLink(code)) })
+    return () => { active = false }
+  }, [code])
+  if (resolved === undefined) return <Loading />
   if (!resolved) return <Notice title="This link isn’t valid" body="Please return to the survey and open the design link again." />
   if (resolved.experiment.status !== 'published')
     return <Notice title="This study isn’t open yet" body="Please return to the survey and contact the research team." />
@@ -35,9 +44,18 @@ export function ParticipantEntry() {
 export function ResearcherPreview() {
   const { condition = 'human' } = useParams()
   const [params] = useSearchParams()
-  const config = getExperiment(params.get('exp') ?? 'exp-01') ?? getExperiment('exp-01')!
+  const experimentId = params.get('exp') ?? 'exp-01'
+  const [config, setConfig] = useState<ExperimentConfig | null>(() => getExperiment(experimentId) ?? getExperiment('exp-01'))
+  useEffect(() => {
+    let active = true
+    loadExperiment(experimentId, 'editor')
+      .then((remote) => { if (active && remote) setConfig(remote.experiment) })
+      .catch(() => undefined)
+    return () => { active = false }
+  }, [experimentId])
+  if (!config) return <Loading />
   const mode: Condition = condition === 'ai' ? 'ai' : 'human'
-  const code = `preview-${config.id}-${mode}`
+  const code = `preview-${config.id}-${config.version}-${config.updatedAt}-${mode}`
   const reset = () => {
     Object.keys(localStorage).filter((k) => k.includes(code)).forEach((k) => localStorage.removeItem(k))
     window.location.reload()
@@ -54,6 +72,10 @@ export function ResearcherPreview() {
     </button>
   )
   return <ParticipantView key={code} config={config} condition={mode} code={code} pid="researcher-preview" badge={badge} extra={extra} />
+}
+
+function Loading() {
+  return <div className="dot-grid flex min-h-screen items-center justify-center bg-workspace text-sm font-semibold text-slate-500">Loading experiment…</div>
 }
 
 function Notice({ title, body }: { title: string; body: string }) {

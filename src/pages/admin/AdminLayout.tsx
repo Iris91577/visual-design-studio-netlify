@@ -3,13 +3,11 @@ import { useState, type ReactNode } from 'react'
 import { Link, NavLink, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { FlaskConical, LogOut, Users } from 'lucide-react'
 import { Button, Logo } from '../../components/ui'
+import { researcherLogin, researcherLogout } from '../../services/experiments'
 
-/**
- * PREVIEW SIGN-IN. The dashboard is gated in the browser only; Milestone 2
- * replaces this with Netlify Identity (researcher role) and server-side checks
- * on every /api/admin route.
- */
-const KEY = 'vds:researcher'
+/** The server validates the configured researcher password and issues an
+ * HttpOnly session cookie; this browser value only controls the local shell. */
+const KEY = 'vds:researcher:v2'
 export const getResearcher = () => localStorage.getItem(KEY)
 
 export function RequireResearcher({ children }: { children: ReactNode }) {
@@ -36,7 +34,7 @@ export function AdminLayout() {
           <div className="truncate text-[13px] font-semibold text-slate-700">{email}</div>
           <div className="text-[11.5px] text-slate-400">Researcher</div>
           <button
-            onClick={() => { localStorage.removeItem(KEY); nav('/admin/login') }}
+            onClick={async () => { await researcherLogout(); localStorage.removeItem(KEY); nav('/admin/login') }}
             className="mt-2 inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-slate-500 hover:text-slate-800"
           >
             <LogOut className="size-3.5" /> Sign out
@@ -54,14 +52,23 @@ export function AdminLogin() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
-  const submit = (e: React.FormEvent) => {
+  const [busy, setBusy] = useState(false)
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!/^\S+@\S+\.\S+$/.test(email) || password.length < 6) {
       setError('Enter a valid email and a password of at least 6 characters.')
       return
     }
-    localStorage.setItem(KEY, email)
-    nav((loc.state as { from?: string } | null)?.from ?? '/admin', { replace: true })
+    setBusy(true)
+    setError('')
+    try {
+      await researcherLogin(email, password)
+      localStorage.setItem(KEY, email)
+      nav((loc.state as { from?: string } | null)?.from ?? '/admin', { replace: true })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Researcher sign-in failed.')
+      setBusy(false)
+    }
   }
   return (
     <div className="dot-grid flex min-h-screen items-center justify-center bg-workspace p-6">
@@ -78,9 +85,9 @@ export function AdminLogin() {
             className="mt-1.5 h-10 w-full rounded-lg bg-white px-3 text-sm ring-1 ring-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-500" />
         </label>
         {error && <p className="mt-3 text-[13px] font-medium text-red-600">{error}</p>}
-        <Button variant="primary" size="lg" className="mt-6 w-full" type="submit">Sign in</Button>
+        <Button variant="primary" size="lg" className="mt-6 w-full" type="submit" disabled={busy}>{busy ? 'Signing in…' : 'Sign in'}</Button>
         <p className="mt-4 rounded-lg bg-amber-50 px-3 py-2 text-[12px] leading-snug text-amber-800">
-          Preview sign-in: any email works for now. Real researcher accounts come with the data milestone.
+          Use the researcher password configured for this Netlify project.
         </p>
       </form>
     </div>

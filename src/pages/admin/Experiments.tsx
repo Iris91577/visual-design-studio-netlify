@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Clock, Hand, Plus, Sparkles } from 'lucide-react'
 import { Badge, Button, Card } from '../../components/ui'
@@ -6,11 +7,23 @@ import { experiments, getSessions } from '../../fixtures'
 import { presetLabel } from '../../lib/canvasPresets'
 import { METHOD_LABELS } from '../../lib/aiModels'
 import { PageHeader } from './AdminLayout'
+import { loadPublishedExperiments } from '../../services/experiments'
+import type { ExperimentConfig } from '../../lib/types'
 
 export const statusTone = { published: 'green', draft: 'amber', archived: 'slate' } as const
 
 export function ExperimentsPage() {
   const nav = useNavigate()
+  const [items, setItems] = useState<ExperimentConfig[]>(experiments)
+  useEffect(() => {
+    let active = true
+    loadPublishedExperiments().then(({ experiments: remote }) => {
+      if (!active) return
+      const overrides = new Map(remote.map((experiment) => [experiment.id, experiment]))
+      setItems(experiments.map((experiment) => overrides.get(experiment.id) ?? experiment))
+    }).catch(() => undefined)
+    return () => { active = false }
+  }, [])
   return (
     <>
       <PageHeader
@@ -19,7 +32,7 @@ export function ExperimentsPage() {
         actions={<Button variant="primary" onClick={() => nav('/admin/experiments/new')}><Plus className="size-4" /> New experiment</Button>}
       />
       <div className="grid gap-5 p-8 md:grid-cols-2 xl:grid-cols-3">
-        {experiments.map((exp) => {
+        {items.map((exp) => {
           const ss = getSessions(exp.id)
           const submitted = ss.filter((s) => s.status === 'submitted')
           const latest = submitted[0]
