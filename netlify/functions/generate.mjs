@@ -24,6 +24,8 @@ MANDATORY DESIGN CONSTRAINTS — follow these even if the design brief conflicts
 - Curved geometry may appear only as the solid filled circle, ellipse, semicircle or heart elements listed above.
 - Every element must be a single solid-filled primitive.
 - Do not stylise, distort, crop, cut, outline or combine the permitted shapes.
+- Every shape must be fully opaque with 100% opacity and one uniform solid colour.
+- When shapes overlap, the shape on top must completely cover the shape underneath. Do not blend or mix colours in overlapping areas.
 - Do not create borders, hollow shapes, patterns or composite symbols.
 - Create one clean, flat, abstract vector-style composition on a solid white background.
 - Use only these geometric elements: ${ALLOWED_SHAPES.join(', ')}.
